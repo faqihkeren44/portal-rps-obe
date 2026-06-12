@@ -931,6 +931,364 @@ app.post("/api/gemini/generate-exam", async (req, res) => {
 
 
 // ==========================================
+// COMPATIBILITY GET & POST ROUTES FOR FRONTEND
+// ==========================================
+
+// Compatibility GET Endpoints for Frontend loadAllData
+app.get("/api/master/users", (req, res) => res.json(dbUsers));
+app.get("/api/master/periods", (req, res) => res.json(dbPeriods));
+app.get("/api/master/bloom", (req, res) => res.json(dbBloom));
+app.get("/api/master/methods", (req, res) => res.json(dbMethods));
+app.get("/api/master/assessments", (req, res) => res.json(dbAssessmentTypes));
+app.get("/api/kaprodi/cpl", (req, res) => res.json(dbCPL));
+app.get("/api/kaprodi/courses", (req, res) => res.json(dbCourses));
+app.get("/api/kaprodi/assignments", (req, res) => res.json(dbAssignments));
+app.get("/api/dosen/rps", (req, res) => res.json(dbRPS));
+app.get("/api/dosen/questions", (req, res) => res.json(dbQuestions));
+app.get("/api/dosen/tasks", (req, res) => res.json(dbTasks));
+app.get("/api/dosen/exams", (req, res) => res.json(dbExams));
+app.get("/api/dosen/versions", (req, res) => res.json(dbVersions));
+
+// Compatibility POST/PUT mappings for Frontend operations
+app.post("/api/master/users", (req, res) => {
+  const { name, username, email, role, actorName } = req.body;
+  const newUser: User = {
+    id: `usr-${Date.now()}`,
+    name,
+    username: username || name.toLowerCase().replace(/\s+/g, ""),
+    email,
+    role,
+    isActive: true,
+    createdAt: new Date().toISOString().split("T")[0]
+  };
+  dbUsers.push(newUser);
+  addAuditLog(actorName || "Admin", "ADMIN", "CREATE_USER", `Pendaftaran user baru: ${name} (${role})`);
+  res.json(newUser);
+});
+
+app.post("/api/master/users/:id", (req, res) => {
+  const { id } = req.params;
+  const { name, email, role, isActive, actorName } = req.body;
+  const idx = dbUsers.findIndex(u => u.id === id);
+  if (idx !== -1) {
+    dbUsers[idx] = { ...dbUsers[idx], name, email, role, isActive };
+    addAuditLog(actorName || "Admin", "ADMIN", "UPDATE_USER", `Mengubah profil user: ${name}`);
+    return res.json(dbUsers[idx]);
+  }
+  res.status(404).json({ error: "User tidak ditemukan" });
+});
+
+app.post("/api/master/users/:id/reset-password", (req, res) => {
+  const { id } = req.params;
+  const { actorName } = req.body;
+  const user = dbUsers.find(u => u.id === id);
+  if (user) {
+    addAuditLog(actorName || "Admin", "ADMIN", "RESET_PASSWORD", `Mereset password user: ${user.name}`);
+    return res.json({ success: true, message: `Password ${user.name} berhasil direset ke nilai default!` });
+  }
+  res.status(404).json({ error: "User tidak ditemukan" });
+});
+
+app.post("/api/master/periods", (req, res) => {
+  const { year, semester, actorName } = req.body;
+  const newItem: AcademicPeriod = {
+    id: `prd-${Date.now()}`,
+    year,
+    semester,
+    isActive: false
+  };
+  dbPeriods.push(newItem);
+  addAuditLog(actorName || "Admin", "ADMIN", "CREATE_PERIOD", `Menambah periode akademik: ${year} ${semester}`);
+  res.json(newItem);
+});
+
+app.post("/api/master/periods/:id", (req, res) => {
+  const { id } = req.params;
+  const { year, semester, isActive, actorName } = req.body;
+  const idx = dbPeriods.findIndex(p => p.id === id);
+  if (idx !== -1) {
+    if (isActive) {
+      dbPeriods.forEach(p => p.isActive = false);
+    }
+    dbPeriods[idx] = { id, year, semester, isActive };
+    addAuditLog(actorName || "Admin", "ADMIN", "UPDATE_PERIOD", `Mengubah periode akademik: ${year} ${semester} (Active: ${isActive})`);
+    return res.json(dbPeriods[idx]);
+  }
+  res.status(404).json({ error: "Periode tidak ditemukan" });
+});
+
+app.post("/api/master/methods", (req, res) => {
+  const { name, description, actorName } = req.body;
+  const newItem: LearningMethod = {
+    id: `met-${Date.now()}`,
+    name,
+    description
+  };
+  dbMethods.push(newItem);
+  addAuditLog(actorName || "Admin", "ADMIN", "CREATE_METHOD", `Menambah metode pembelajaran: ${name}`);
+  res.json(newItem);
+});
+
+app.post("/api/master/methods/:id", (req, res) => {
+  const { id } = req.params;
+  const { name, description, actorName } = req.body;
+  const idx = dbMethods.findIndex(m => m.id === id);
+  if (idx !== -1) {
+    dbMethods[idx] = { id, name, description };
+    addAuditLog(actorName || "Admin", "ADMIN", "UPDATE_METHOD", `Mengubah metode pembelajaran: ${name}`);
+    return res.json(dbMethods[idx]);
+  }
+  res.status(404).json({ error: "Metode tidak ditemukan" });
+});
+
+app.post("/api/master/assessments", (req, res) => {
+  const { name, description, defaultWeight, actorName = "Admin" } = req.body;
+  const newItem: AssessmentType = {
+    id: `as-${Date.now()}`,
+    name,
+    description,
+    defaultWeight: parseInt(defaultWeight) || 10
+  };
+  dbAssessmentTypes.push(newItem);
+  addAuditLog(actorName, "ADMIN", "CREATE_ASSESSMENT_TYPE", `Menambah tipe asesmen: ${name}`);
+  res.json(newItem);
+});
+
+app.post("/api/master/assessments/:id", (req, res) => {
+  const { id } = req.params;
+  const { name, description, defaultWeight, actorName = "Admin" } = req.body;
+  const idx = dbAssessmentTypes.findIndex(a => a.id === id);
+  if (idx !== -1) {
+    dbAssessmentTypes[idx] = { id, name, description, defaultWeight: parseInt(defaultWeight) };
+    addAuditLog(actorName, "ADMIN", "UPDATE_ASSESSMENT_TYPE", `Mengubah tipe asesmen: ${name}`);
+    return res.json(dbAssessmentTypes[idx]);
+  }
+  res.status(404).json({ error: "Tipe Asesmen tidak ditemukan" });
+});
+
+app.post("/api/kaprodi/cpl", (req, res) => {
+  const { code, description, category, actorName } = req.body;
+  const newItem: CPL = {
+    id: `cpl-${Date.now()}`,
+    code,
+    description,
+    category,
+    isActive: true
+  };
+  dbCPL.push(newItem);
+  addAuditLog(actorName || "Kaprodi", "KAPRODI", "CREATE_CPL", `Menambah Capaian Pembelajaran Lulusan: ${code}`);
+  res.json(newItem);
+});
+
+app.post("/api/kaprodi/cpl/:id", (req, res) => {
+  const { id } = req.params;
+  const { code, description, category, isActive, actorName } = req.body;
+  const idx = dbCPL.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    dbCPL[idx] = { ...dbCPL[idx], code, description, category, isActive };
+    addAuditLog(actorName || "Kaprodi", "KAPRODI", "UPDATE_CPL", `Mengubah CPL: ${code}`);
+    return res.json(dbCPL[idx]);
+  }
+  res.status(404).json({ error: "CPL tidak ditemukan" });
+});
+
+app.post("/api/kaprodi/cpl/:id/delete", (req, res) => {
+  const { id } = req.params;
+  const idx = dbCPL.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    const code = dbCPL[idx].code;
+    dbCPL.splice(idx, 1);
+    addAuditLog("Kaprodi", "KAPRODI", "DELETE_CPL", `Menghapus CPL: ${code}`);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: "CPL tidak ditemukan" });
+});
+
+app.post("/api/kaprodi/courses", (req, res) => {
+  const { code, name, sks, semester, curriculum, cplIds, actorName } = req.body;
+  const newItem: Course = {
+    id: `crs-${Date.now()}`,
+    code,
+    name,
+    sks: parseInt(sks) || 3,
+    semester: parseInt(semester) || 1,
+    curriculum: curriculum || "Kurikulum Merdeka 2026",
+    cplIds: cplIds || []
+  };
+  dbCourses.push(newItem);
+  addAuditLog(actorName || "Kaprodi", "KAPRODI", "CREATE_COURSE", `Menambah Mata Kuliah Baru: ${name} (${code})`);
+  res.json(newItem);
+});
+
+app.post("/api/kaprodi/courses/:id", (req, res) => {
+  const { id } = req.params;
+  const { code, name, sks, semester, curriculum, cplIds, actorName } = req.body;
+  const idx = dbCourses.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    dbCourses[idx] = { 
+      ...dbCourses[idx], 
+      code, 
+      name, 
+      sks: parseInt(sks), 
+      semester: parseInt(semester), 
+      curriculum, 
+      cplIds 
+    };
+    addAuditLog(actorName || "Kaprodi", "KAPRODI", "UPDATE_COURSE", `Mengubah Mata Kuliah: ${name} (${code})`);
+    return res.json(dbCourses[idx]);
+  }
+  res.status(404).json({ error: "Mata kuliah tidak ditemukan" });
+});
+
+app.post("/api/kaprodi/courses/:id/delete", (req, res) => {
+  const { id } = req.params;
+  const idx = dbCourses.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    const name = dbCourses[idx].name;
+    dbCourses.splice(idx, 1);
+    addAuditLog("Kaprodi", "KAPRODI", "DELETE_COURSE", `Menghapus Mata Kuliah: ${name}`);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: "Mata kuliah tidak ditemukan" });
+});
+
+app.post("/api/kaprodi/assignments", (req, res) => {
+  const { lecturerId, courseId, periodId, actorName } = req.body;
+  const newItem: LecturerAssignment = {
+    id: `asg-${Date.now()}`,
+    lecturerId,
+    courseId,
+    periodId
+  };
+  dbAssignments.push(newItem);
+  const dose = dbUsers.find(u => u.id === lecturerId)?.name || lecturerId;
+  const cour = dbCourses.find(c => c.id === courseId)?.name || courseId;
+  addAuditLog(actorName || "Kaprodi", "KAPRODI", "ASSIGN_LECTURER", `Plotting dosen ${dose} untuk ${cour}`);
+  res.json(newItem);
+});
+
+app.post("/api/kaprodi/assignments/:id/delete", (req, res) => {
+  const { id } = req.params;
+  const idx = dbAssignments.findIndex(a => a.id === id);
+  if (idx !== -1) {
+    dbAssignments.splice(idx, 1);
+    addAuditLog("Kaprodi", "KAPRODI", "REMOVE_ASSIGNMENT", "Menghapus plotting pengajar dosen");
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: "Plotting tidak ditemukan" });
+});
+
+app.post("/api/kaprodi/rps/:id/validate", (req, res) => {
+  const { id } = req.params;
+  const { status, notes, actorName } = req.body;
+  const idx = dbRPS.findIndex(r => r.id === id);
+  if (idx !== -1) {
+    const r = dbRPS[idx];
+    r.status = status;
+    r.notes = notes;
+    r.updatedAt = new Date().toISOString();
+    r.version += 1;
+    
+    dbVersions.push({
+      id: `v-${Date.now()}-${id}`,
+      rpsId: id,
+      version: r.version,
+      editorName: actorName || "Kaprodi",
+      status: status,
+      timestamp: r.updatedAt,
+      meta: `Proses Validasi Kaprodi: ${status}`,
+      data: JSON.stringify(r)
+    });
+
+    addAuditLog(actorName || "Kaprodi", "KAPRODI", "VALIDATE_RPS", `Melakukan validasi RPS ${r.courseName} -> ${status}`);
+    return res.json(r);
+  }
+  res.status(404).json({ error: "RPS tidak ditemukan" });
+});
+
+app.post("/api/dosen/rps", (req, res) => {
+  const rpsData: RPS = req.body;
+  const rpsId = rpsData.id || `rps-${Date.now()}`;
+  const preparedRPS: RPS = {
+    ...rpsData,
+    id: rpsId,
+    status: rpsData.status || "DRAFT",
+    version: rpsData.version || 1,
+    updatedAt: new Date().toISOString()
+  };
+  dbRPS.push(preparedRPS);
+  
+  dbVersions.push({
+    id: `v-${Date.now()}-${rpsId}`,
+    rpsId,
+    version: preparedRPS.version,
+    editorName: rpsData.updatedBy || "Dosen Pengampu",
+    status: preparedRPS.status,
+    timestamp: preparedRPS.updatedAt,
+    meta: "Pembuatan Draf Baru RPS",
+    data: JSON.stringify(preparedRPS)
+  });
+
+  addAuditLog(preparedRPS.updatedBy, "DOSEN", "CREATE_RPS", `Membuat draft RPS baru untuk ${preparedRPS.courseName}`);
+  res.json(preparedRPS);
+});
+
+app.post("/api/dosen/rps/:id", (req, res) => {
+  const { id } = req.params;
+  const updatedData: RPS = req.body;
+  const idx = dbRPS.findIndex(r => r.id === id);
+  
+  if (idx !== -1) {
+    const oldData = dbRPS[idx];
+    const newVersion = oldData.version + 1;
+    
+    const fullyUpdatedRPS: RPS = {
+      ...updatedData,
+      id,
+      version: newVersion,
+      updatedAt: new Date().toISOString()
+    };
+    
+    dbRPS[idx] = fullyUpdatedRPS;
+    
+    dbVersions.push({
+      id: `v-${Date.now()}-${id}`,
+      rpsId: id,
+      version: newVersion,
+      editorName: updatedData.updatedBy || "Dosen Pengampu",
+      status: fullyUpdatedRPS.status,
+      timestamp: fullyUpdatedRPS.updatedAt,
+      meta: `Pembaruan data ke Versi ${newVersion}`,
+      data: JSON.stringify(fullyUpdatedRPS)
+    });
+
+    addAuditLog(fullyUpdatedRPS.updatedBy || "Dosen", "DOSEN", "UPDATE_RPS", `Menyimpan revisi RPS ${fullyUpdatedRPS.courseName} (v${newVersion})`);
+    return res.json(fullyUpdatedRPS);
+  }
+  
+  res.status(404).json({ error: "RPS tidak ditemukan" });
+});
+
+app.post("/api/dosen/questions", (req, res) => {
+  const q: QuestionItem = { id: `q-${Date.now()}`, ...req.body };
+  dbQuestions.push(q);
+  res.json(q);
+});
+
+app.post("/api/dosen/tasks", (req, res) => {
+  const t: TaskPlan = { id: `t-${Date.now()}`, ...req.body };
+  dbTasks.push(t);
+  res.json(t);
+});
+
+app.post("/api/dosen/exams", (req, res) => {
+  const e: ExamPlan = { id: `e-${Date.now()}`, ...req.body };
+  dbExams.push(e);
+  res.json(e);
+});
+
+
+// ==========================================
 // STATIC & VITE MIDDLEWARE CONFIGURATION
 // ==========================================
 
