@@ -1,0 +1,6 @@
+{
+  "name": "Portal RPS OBE",
+  "description": "Platform digital enterprise untuk penyusunan, validasi, dan pengelolaan Rencana Pembelajaran Semester (RPS) berbasis Outcome-Based Education (OBE) terintegrasi Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
